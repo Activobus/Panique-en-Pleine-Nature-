@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chasse au Trésor</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; margin: 0; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 400px; margin: 20px auto; }
+        .color-box { height: 60px; border-radius: 8px; margin: 15px 0; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.2em; text-shadow: 1px 1px 2px black; }
+        .error { color: #d9534f; font-weight: bold; }
+        .success { color: #5cb85c; }
+        button { padding: 10px 15px; border: none; background: #0275d8; color: white; border-radius: 5px; font-size: 1em; cursor: pointer; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 id="title">Chasse au Trésor</h2>
+    <div id="content">Chargement...</div>
+    <br>
+    <button onclick="reinitialiser()" style="background:#d9534f; font-size:0.8em;">Recommencer le parcours</button>
+</div>
+
+<script>
+// --- BANQUE DE DONNÉES DES PARCOURS ---
+const DONNEES_PARCOURS = {
+    "A": {
+        nom: "Parcours Pirate",
+        etapes: {
+            1: { mot: "SABRE", couleur: "#FF3333", indice: "Cherchez sous la grande table du jardin." },
+            2: { mot: "NAVIRE", couleur: "#3383FF", indice: "Regardez près du grand arbre." },
+            3: { mot: "TRESOR", couleur: "#FFD700", indice: "Bravo ! Vous avez terminé ce parcours !" }
+        }
+    },
+    "B": {
+        nom: "Parcours Explorateur",
+        etapes: {
+            1: { mot: "BOUSSOLE", couleur: "#33FF57", indice: "Allez voir derrière le cabanon." },
+            2: { mot: "CARTE", couleur: "#A833FF", indice: "Cherchez sous le banc." },
+            3: { mot: "JUNGLE", couleur: "#FF8333", indice: "Bravo ! Vous avez terminé ce parcours !" }
+        }
+    }
+};
+
+// --- LOGIQUE DE VALIDATION ET D'AFFICHAGE ---
+function chargerEtape() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const parcoursScanne = urlParams.get('parcours');
+    const etapeScagnee = parseInt(urlParams.get('etape'));
+
+    const contentDiv = document.getElementById('content');
+    const titleDiv = document.getElementById('title');
+
+    // Cas 1 : Aucun paramètre dans l'URL
+    if (!parcoursScanne || !etapeScagnee) {
+        contentDiv.innerHTML = "<p>Veuillez scanner un premier QR code ou sticker NFC pour démarrer un parcours !</p>";
+        return;
+    }
+
+    // Récupération de la progression sur le téléphone
+    let parcoursEnCours = localStorage.getItem('parcours_actif');
+    let etapeValidee = parseInt(localStorage.getItem('etape_validee')) || 0;
+
+    // Départ d'un nouveau parcours (Étape 1)
+    if (etapeScagnee === 1) {
+        localStorage.setItem('parcours_actif', parcoursScanne);
+        localStorage.setItem('etape_validee', 1);
+        afficherSucces(parcoursScanne, 1);
+        return;
+    }
+
+    // Sécurité : Vérifier si le joueur est sur le bon parcours
+    if (parcoursScanne !== parcoursEnCours) {
+        contentDiv.innerHTML = `<p class="error">Erreur de parcours !<br>Vous suivez le parcours <b>${parcoursEnCours || 'aucun'}</b>. Vous avez scanné le parcours <b>${parcoursScanne}</b>.</p>`;
+        return;
+    }
+
+    // Sécurité : Vérifier l'ordre des étapes
+    if (etapeScagnee === etapeValidee + 1) {
+        localStorage.setItem('etape_validee', etapeScagnee);
+        afficherSucces(parcoursScanne, etapeScagnee);
+    } else if (etapeScagnee <= etapeValidee) {
+        afficherSucces(parcoursScanne, etapeScagnee, true);
+    } else {
+        contentDiv.innerHTML = `<p class="error">Étape verrouillée !<br>Vous devez d'abord valider l'étape ${etapeValidee + 1}.</p>`;
+    }
+}
+
+function afficherSucces(parcours, etape, dejaFait = false) {
+    const dataEtape = DONNEES_PARCOURS[parcours].etapes[etape];
+    const nomParcours = DONNEES_PARCOURS[parcours].nom;
+
+    document.getElementById('title').innerText = nomParcours;
+    document.getElementById('content').innerHTML = `
+        <p class="success">${dejaFait ? "Étape déjà validée" : "Étape " + etape + " Déverrouillée !"}</p>
+        <p>Mot secret à noter sur votre fiche :</p>
+        <h1 style="letter-spacing: 2px;">${dataEtape.mot}</h1>
+        <div class="color-box" style="background-color: ${dataEtape.couleur}">Couleur : ${dataEtape.couleur}</div>
+        <hr>
+        <p><b>Indice pour la suite :</b><br>${dataEtape.indice}</p>
+    `;
+}
+
+function reinitialiser() {
+    if(confirm("Voulez-vous vraiment réinitialiser votre progression ?")) {
+        localStorage.clear();
+        alert("Progression effacée. Vous pouvez scanner un nouveau départ.");
+        window.location.href = window.location.pathname;
+    }
+}
+
+window.onload = chargerEtape;
+</script>
+
+</body>
+</html>
