@@ -8,9 +8,12 @@
         body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; margin: 0; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 400px; margin: 20px auto; }
         .color-box { height: 60px; border-radius: 8px; margin: 15px 0; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.2em; text-shadow: 1px 1px 2px black; }
-        .error { color: #d9534f; font-weight: bold; }
-        .success { color: #5cb85c; }
-        button { padding: 10px 15px; border: none; background: #0275d8; color: white; border-radius: 5px; font-size: 1em; cursor: pointer; margin-top: 15px; }
+        .error { color: #d9534f; font-weight: bold; margin-top: 10px; }
+        .success { color: #5cb85c; font-weight: bold; }
+        input[type="text"] { width: 80%; padding: 10px; margin: 10px 0; font-size: 1em; border: 2px solid #ccc; border-radius: 6px; text-align: center; text-transform: uppercase; }
+        button { padding: 10px 18px; border: none; background: #0275d8; color: white; border-radius: 6px; font-size: 1em; cursor: pointer; margin-top: 10px; }
+        .btn-reset { background: #d9534f; font-size: 0.8em; margin-top: 25px; }
+        img.enigme-img { max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; }
     </style>
 </head>
 <body>
@@ -18,94 +21,158 @@
 <div class="card">
     <h2 id="title">Chasse au Trésor</h2>
     <div id="content">Chargement...</div>
-    <br>
-    <button onclick="reinitialiser()" style="background:#d9534f; font-size:0.8em;">Recommencer le parcours</button>
+    <button onclick="reinitialiser()" class="btn-reset">Recommencer le parcours</button>
 </div>
 
 <script>
-// --- BANQUE DE DONNÉES DES PARCOURS ---
+// --- BANQUE DE DONNÉES DES PARCOURS ET ÉNIGMES ---
 const DONNEES_PARCOURS = {
     "A": {
         nom: "Parcours Pirate",
         etapes: {
-            1: { mot: "SABRE", couleur: "#FF3333", indice: "Cherchez sous la grande table du jardin." },
-            2: { mot: "NAVIRE", couleur: "#3383FF", indice: "Regardez près du grand arbre." },
-            3: { mot: "TRESOR", couleur: "#FFD700", indice: "Bravo ! Vous avez terminé ce parcours !" }
+            1: { 
+                enigme: "Je suis grande avant d'être petite, je donne de la lumière et je fonds. Qui suis-je ?", 
+                image: "", // Optionnel : mettez l'URL d'une image si besoin
+                reponse: "BOUGIE", 
+                couleur: "#FF3333", 
+                indice: "Bien joué ! Cherchez le prochain QR code sous la grande table du jardin." 
+            },
+            2: { 
+                enigme: "Plus j'ai de gardiens, moins je suis gardé. Moins j'ai de gardiens, plus je suis gardé. Que suis-je ?", 
+                image: "",
+                reponse: "SECRET", 
+                couleur: "#3383FF", 
+                indice: "Bravo ! Le sticker suivant se trouve près du grand arbre." 
+            },
+            3: { 
+                enigme: "Je n'ai pas de poumons mais j'ai besoin d'air, je n'ai pas de bouche mais l'eau me tue. Que suis-je ?", 
+                image: "",
+                reponse: "FEU", 
+                couleur: "#FFD700", 
+                indice: "Félicitations ! Vous avez trouvé le trésor et terminé le parcours !" 
+            }
         }
     },
     "B": {
         nom: "Parcours Explorateur",
         etapes: {
-            1: { mot: "BOUSSOLE", couleur: "#33FF57", indice: "Allez voir derrière le cabanon." },
-            2: { mot: "CARTE", couleur: "#A833FF", indice: "Cherchez sous le banc." },
-            3: { mot: "JUNGLE", couleur: "#FF8333", indice: "Bravo ! Vous avez terminé ce parcours !" }
+            1: { 
+                enigme: "J'ai des villes mais pas de maisons, des forêts mais pas d'arbres, des rivières mais pas d'eau. Que suis-je ?", 
+                image: "",
+                reponse: "CARTE", 
+                couleur: "#33FF57", 
+                indice: "Excellente réponse ! Dirigez-vous derrière le cabanon." 
+            },
+            2: { 
+                enigme: "Je pointe le Nord mais je ne suis pas une aiguille à tricoter. Que suis-je ?", 
+                image: "",
+                reponse: "BOUSSOLE", 
+                couleur: "#A833FF", 
+                indice: "Parfait ! Regardez sous le banc en bois." 
+            }
         }
     }
 };
 
-// --- LOGIQUE DE VALIDATION ET D'AFFICHAGE ---
+let parcoursActif = "";
+let etapeActive = 0;
+
 function chargerEtape() {
     const urlParams = new URLSearchParams(window.location.search);
-    const parcoursScanne = urlParams.get('parcours');
-    const etapeScagnee = parseInt(urlParams.get('etape'));
+    parcoursActif = urlParams.get('parcours');
+    etapeActive = parseInt(urlParams.get('etape'));
 
     const contentDiv = document.getElementById('content');
-    const titleDiv = document.getElementById('title');
 
-    // Cas 1 : Aucun paramètre dans l'URL
-    if (!parcoursScanne || !etapeScagnee) {
-        contentDiv.innerHTML = "<p>Veuillez scanner un premier QR code ou sticker NFC pour démarrer un parcours !</p>";
+    if (!parcoursActif || !etapeActive || !DONNEES_PARCOURS[parcoursActif]) {
+        contentDiv.innerHTML = "<p>Veuillez scanner un QR code ou un sticker NFC valide pour démarrer !</p>";
         return;
     }
 
-    // Récupération de la progression sur le téléphone
     let parcoursEnCours = localStorage.getItem('parcours_actif');
     let etapeValidee = parseInt(localStorage.getItem('etape_validee')) || 0;
 
-    // Départ d'un nouveau parcours (Étape 1)
-    if (etapeScagnee === 1) {
-        localStorage.setItem('parcours_actif', parcoursScanne);
-        localStorage.setItem('etape_validee', 1);
-        afficherSucces(parcoursScanne, 1);
+    // Début d'un nouveau parcours
+    if (etapeActive === 1 && (!parcoursEnCours || parcoursEnCours !== parcoursActif)) {
+        localStorage.setItem('parcours_actif', parcoursActif);
+        localStorage.setItem('etape_validee', 0);
+        etapeValidee = 0;
+    }
+
+    // Sécurité parcours
+    if (parcoursActif !== localStorage.getItem('parcours_actif')) {
+        contentDiv.innerHTML = `<p class="error">Mauvais parcours !<br>Vous suivez actuellement le <b>${DONNEES_PARCOURS[localStorage.getItem('parcours_actif')]?.nom || 'autre parcours'}</b>.</p>`;
         return;
     }
 
-    // Sécurité : Vérifier si le joueur est sur le bon parcours
-    if (parcoursScanne !== parcoursEnCours) {
-        contentDiv.innerHTML = `<p class="error">Erreur de parcours !<br>Vous suivez le parcours <b>${parcoursEnCours || 'aucun'}</b>. Vous avez scanné le parcours <b>${parcoursScanne}</b>.</p>`;
+    // Étape déjà validée auparavant
+    if (etapeActive <= etapeValidee) {
+        afficherSucces(parcoursActif, etapeActive, true);
         return;
     }
 
-    // Sécurité : Vérifier l'ordre des étapes
-    if (etapeScagnee === etapeValidee + 1) {
-        localStorage.setItem('etape_validee', etapeScagnee);
-        afficherSucces(parcoursScanne, etapeScagnee);
-    } else if (etapeScagnee <= etapeValidee) {
-        afficherSucces(parcoursScanne, etapeScagnee, true);
+    // Étape trop en avance
+    if (etapeActive > etapeValidee + 1) {
+        contentDiv.innerHTML = `<p class="error">Étape verrouillée !<br>Vous devez d'abord résoudre l'étape ${etapeValidee + 1}.</p>`;
+        return;
+    }
+
+    // Afficher l'énigme à résoudre
+    afficherEnigme(parcoursActif, etapeActive);
+}
+
+function afficherEnigme(parcours, etape) {
+    const data = DONNEES_PARCOURS[parcours].etapes[etape];
+    document.getElementById('title').innerText = DONNEES_PARCOURS[parcours].nom + " - Étape " + etape;
+    
+    let html = `<p><b>Énigme :</b></p><p style="font-size:1.1em;">${data.enigme}</p>`;
+    
+    if (data.image) {
+        html += `<img src="${data.image}" class="enigme-img" alt="Enigme">`;
+    }
+
+    html += `
+        <form onsubmit="verifierReponse(event)">
+            <input type="text" id="reponseInput" placeholder="Entrez votre réponse..." autocomplete="off" required>
+            <br>
+            <button type="submit">Valider la réponse</button>
+        </form>
+        <div id="feedback"></div>
+    `;
+
+    document.getElementById('content').innerHTML = html;
+}
+
+function verifierReponse(e) {
+    e.preventDefault();
+    const saisie = document.getElementById('reponseInput').value.trim().toUpperCase();
+    const bonneReponse = DONNEES_PARCOURS[parcoursActif].etapes[etapeActive].reponse.toUpperCase();
+
+    if (saisie === bonneReponse) {
+        localStorage.setItem('etape_validee', etapeActive);
+        afficherSucces(parcoursActif, etapeActive);
     } else {
-        contentDiv.innerHTML = `<p class="error">Étape verrouillée !<br>Vous devez d'abord valider l'étape ${etapeValidee + 1}.</p>`;
+        document.getElementById('feedback').innerHTML = `<p class="error">Mauvaise réponse ! Essayez encore.</p>`;
     }
 }
 
 function afficherSucces(parcours, etape, dejaFait = false) {
-    const dataEtape = DONNEES_PARCOURS[parcours].etapes[etape];
-    const nomParcours = DONNEES_PARCOURS[parcours].nom;
+    const data = DONNEES_PARCOURS[parcours].etapes[etape];
+    document.getElementById('title').innerText = DONNEES_PARCOURS[parcours].nom;
 
-    document.getElementById('title').innerText = nomParcours;
     document.getElementById('content').innerHTML = `
-        <p class="success">${dejaFait ? "Étape déjà validée" : "Étape " + etape + " Déverrouillée !"}</p>
-        <p>Mot secret à noter sur votre fiche :</p>
-        <h1 style="letter-spacing: 2px;">${dataEtape.mot}</h1>
-        <div class="color-box" style="background-color: ${dataEtape.couleur}">Couleur : ${dataEtape.couleur}</div>
+        <p class="success">${dejaFait ? "Étape déjà réussie !" : " Bravo ! Bonne réponse !"}</p>
+        <p>Mot secret validé : <b>${data.reponse}</b></p>
+        <div class="color-box" style="background-color: ${data.couleur}">Couleur : ${data.couleur}</div>
         <hr>
-        <p><b>Indice pour la suite :</b><br>${dataEtape.indice}</p>
+        <p><b>Indice pour trouver le prochain QR code :</b><br>${data.indice}</p>
     `;
 }
 
 function reinitialiser() {
-    if(confirm("Voulez-vous vraiment réinitialiser votre progression ?")) {
+    if(confirm("Voulez-vous vraiment recommencer le parcours depuis le début ?")) {
         localStorage.clear();
-        alert("Progression effacée. Vous pouvez scanner un nouveau départ.");
+        alert("Progression effacée.");
         window.location.href = window.location.pathname;
     }
 }
